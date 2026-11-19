@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTProto 代理面板 - 多源加強版</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        .proxy-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 9999px;
+            font-size: 14px;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+        .source-tag {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 9999px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center md:justify-between pb-6 mb-6 border-b border-slate-200">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                    <i class="fa-brands fa-telegram text-sky-500 text-4xl"></i>
+                    MTProto Proxy Panel
+                </h1>
+                <p class="text-slate-500 mt-1">多上游源 · 自動去重 · 加強版代理</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center gap-3">
+                <span id="updateTime" class="text-xs bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full font-mono">
+                    更新時間: --:--:--
+                </span>
+                <button id="refreshBtn" class="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 cursor-pointer shadow-sm">
+                    <i class="fa-solid fa-rotate-right"></i> 刷新
+                </button>
+            </div>
+        </header>
+
+        <!-- 上游源選擇 -->
+        <div class="bg-white p-4 rounded-xl shadow-xs mb-4 border border-slate-100">
+            <div class="flex flex-wrap gap-2 items-center">
+                <span class="text-sm text-slate-500 font-medium mr-1">上游源：</span>
+                <button data-source="all" class="source-btn bg-sky-50 text-sky-600 px-3 py-1.5 rounded-lg text-sm font-medium border border-sky-100 cursor-pointer">全部合併</button>
+                <button data-source="mtproto.shop" class="source-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer">mtproto.shop</button>
+                <button data-source="dubblebyte" class="source-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer">dubblebyte</button>
+                <button data-source="tgmtproxy" class="source-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer">tgmtproxy</button>
+                <button data-source="shablin" class="source-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer">shablin</button>
+                <button data-source="zakky8" class="source-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer">zakky8</button>
+            </div>
+        </div>
+
+        <!-- 搜索 + 篩選 -->
+        <div class="bg-white p-4 rounded-xl shadow-xs mb-6 flex flex-col md:flex-row gap-4 justify-between items-center border border-slate-100">
+            <div class="relative w-full md:w-80">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" placeholder="搜索國家、節點、IP 或來源..." 
+                       class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-sm">
+            </div>
+            <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                <button data-filter="all" class="filter-btn bg-sky-50 text-sky-600 px-4 py-1.5 rounded-lg text-sm font-medium border border-sky-100 cursor-pointer whitespace-nowrap">全部</button>
+                <button data-filter="online" class="filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap">在線</button>
+                <button data-filter="slow" class="filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap">高延遲</button>
+            </div>
+        </div>
+
+        <div id="statsBar" class="text-sm text-slate-500 mb-4 hidden">
+            共 <span id="totalCount" class="font-semibold text-slate-700">0</span> 個節點 · 當前來源：<span id="sourceName" class="font-medium">-</span>
+        </div>
+
+        <!-- Loading -->
+        <div id="loadingState" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-2xl h-48 animate-pulse border border-slate-100"></div>
+            <div class="bg-white p-6 rounded-2xl h-48 animate-pulse border border-slate-100"></div>
+            <div class="bg-white p-6 rounded-2xl h-48 animate-pulse border border-slate-100"></div>
+        </div>
+
+        <div id="proxyGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+
+        <div id="emptyState" class="hidden text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
+            <i class="fa-solid fa-box-open text-slate-300 text-5xl mb-3"></i>
+            <p class="text-slate-400">未找到符合條件的代理節點</p>
+        </div>
+    </div>
+
+    <!-- QR Modal -->
+    <div id="qrModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-2xl max-w-sm w-full mx-4 shadow-xl text-center relative">
+            <button id="closeModal" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer text-xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="font-bold text-lg text-slate-900 mb-2" id="qrTitle">掃描二維碼連接</h3>
+            <p class="text-xs text-slate-500 mb-4">使用移動端掃描或直接點擊連入</p>
+            <div id="qrcode" class="flex justify-center p-4 bg-slate-50 rounded-xl mb-4"></div>
+            <a id="qrLink" href="#" class="block w-full bg-sky-500 hover:bg-sky-600 text-white text-center py-2.5 rounded-lg font-medium transition">
+                直接連接 Telegram
+            </a>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // ===================== 設定區 =====================
+        // 把下面改成你自己的 Cloudflare Workers 網址（結尾要有 /）
+        const CORS_PROXY = 'https://cors.meekt.workers.dev/';
+
+        // ==================================================
+
+        const UPSTREAMS = {
+            'mtproto.shop': {
+                name: 'mtproto.shop',
+                color: 'bg-blue-100 text-blue-700',
+                url: 'https://www.mtproto.shop/proxies.json',
+                parser: (data) => {
+                    const list = Array.isArray(data) ? data : (data.proxies || []);
+                    return list.map(p => ({
+                        location: p.location || p.server || 'Unknown',
+                        flag: p.flag || '🌐',
+                        server: p.server || p.domain || '',
+                        domain: p.domain || '',
+                        port: p.port,
+                        secret: p.secret,
+                        ping: p.ping || (p.latency_ms ? p.latency_ms + 'ms' : 'N/A'),
+                        status: p.status || 'online',
+                        link: p.link || null,
+                        source: 'mtproto.shop'
+                    }));
+                }
+            },
+            'dubblebyte': {
+                name: 'dubblebyte',
+                color: 'bg-emerald-100 text-emerald-700',
+                url: 'https://raw.githubusercontent.com/dubblebyte/free-mtproto-proxies/main/proxies.json',
+                parser: (data) => {
+                    const list = Array.isArray(data) ? data : [];
+                    return list.map(p => ({
+                        location: p.server || 'Unknown',
+                        flag: '🌐',
+                        server: p.server,
+                        domain: '',
+                        port: p.port,
+                        secret: p.secret,
+                        ping: p.latency_ms != null ? p.latency_ms + 'ms' : 'N/A',
+                        status: 'online',
+                        link: p.link || null,
+                        source: 'dubblebyte'
+                    }));
+                }
+            },
+            'tgmtproxy': {
+                name: 'tgmtproxy',
+                color: 'bg-violet-100 text-violet-700',
+                url: 'https://tgmtproxy.github.io/mtproxy/proxies.json',
+                parser: (data) => {
+                    const list = data.proxies || [];
+                    return list.map(p => ({
+                        location: p.server || 'Unknown',
+                        flag: p.ours ? '⭐' : '🌐',
+                        server: p.server,
+                        domain: '',
+                        port: p.port,
+                        secret: p.secret,
+                        ping: 'N/A',
+                        status: p.status === 'up' ? 'online' : 'offline',
+                        link: null,
+                        source: 'tgmtproxy'
+                    }));
+                }
+            },
+            'shablin': {
+                name: 'shablin',
+                color: 'bg-amber-100 text-amber-700',
+                url: 'https://raw.githubusercontent.com/shablin/mtproto-proxy/main/data/valid_proxy.json',
+                parser: (data) => {
+                    const list = Array.isArray(data) ? data : [];
+                    return list.filter(p => p.alive !== false).map(p => ({
+                        location: p.host || p.server || 'Unknown',
+                        flag: '🌐',
+                        server: p.host || p.server,
+                        domain: '',
+                        port: p.port,
+                        secret: p.secret,
+                        ping: p.latency_ms != null ? Math.round(p.latency_ms) + 'ms' : 'N/A',
+                        status: 'online',
+                        link: p.url || null,
+                        source: 'shablin'
+                    }));
+                }
+            },
+            'zakky8': {
+                name: 'zakky8',
+                color: 'bg-rose-100 text-rose-700',
+                url: 'https://zakky8.github.io/mtproto-proxy-pro/proxies.json',
+                parser: (data) => {
+                    const list = data.proxies || [];
+                    return list.map(p => ({
+                        location: (p.country ? p.country + ' · ' : '') + (p.server || 'Unknown'),
+                        flag: p.country ? getFlag(p.country) : '🌐',
+                        server: p.server,
+                        domain: '',
+                        port: p.port,
+                        secret: p.secret,
+                        ping: p.latency_ms != null ? p.latency_ms + 'ms' : 'N/A',
+                        status: (p.status === 'reachable' || p.status === 'online') ? 'online' : (p.status || 'online'),
+                        link: p.link || null,
+                        source: 'zakky8'
+                    }));
+                }
+            }
+        };
+
+        // 來源顏色對應
+        const SOURCE_COLORS = {
+            'mtproto.shop': 'bg-blue-100 text-blue-700',
+            'dubblebyte': 'bg-emerald-100 text-emerald-700',
+            'tgmtproxy': 'bg-violet-100 text-violet-700',
+            'shablin': 'bg-amber-100 text-amber-700',
+            'zakky8': 'bg-rose-100 text-rose-700'
+        };
+
+        function getFlag(code) {
+            if (!code || code.length !== 2) return '🌐';
+            const offset = 127397;
+            return String.fromCodePoint(...[...code.toUpperCase()].map(c => c.charCodeAt(0) + offset));
+        }
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        let allProxies = [];
+        let currentFilter = 'all';
+        let currentSource = 'all';
+        let searchQuery = '';
+
+        // DOM
+        const proxyGrid = document.getElementById('proxyGrid');
+        const loadingState = document.getElementById('loadingState');
+        const emptyState = document.getElementById('emptyState');
+        const updateTimeSpan = document.getElementById('updateTime');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const searchInput = document.getElementById('searchInput');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const sourceBtns = document.querySelectorAll('.source-btn');
+        const qrModal = document.getElementById('qrModal');
+        const qrcodeContainer = document.getElementById('qrcode');
+        const statsBar = document.getElementById('statsBar');
+        const totalCount = document.getElementById('totalCount');
+        const sourceName = document.getElementById('sourceName');
+        const toastEl = document.getElementById('toast');
+
+        function showToast(msg) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            setTimeout(() => toastEl.classList.remove('show'), 2200);
+        }
+
+        async function fetchOneSource(key) {
+            const src = UPSTREAMS[key];
+            if (!src) return [];
+            try {
+                const target = src.url;
+                const url = CORS_PROXY + target + (target.includes('?') ? '&' : '?') + 't=' + Date.now();
+                const res = await fetch(url, { cache: 'no-store' });
+                if (!res.ok) throw new Error(res.status);
+                const data = await res.json();
+                return src.parser(data);
+            } catch (e) {
+                console.warn(`[${key}] 獲取失敗:`, e);
+                return [];
+            }
+        }
+
+        async function fetchProxies() {
+            showLoading(true);
+            try {
+                let results = [];
+                if (currentSource === 'all') {
+                    const promises = Object.keys(UPSTREAMS).map(k => fetchOneSource(k));
+                    const arrays = await Promise.all(promises);
+                    results = arrays.flat();
+                } else {
+                    results = await fetchOneSource(currentSource);
+                }
+
+                // 去重
+                const seen = new Set();
+                allProxies = results.filter(p => {
+                    if (!p.server || !p.port || !p.secret) return false;
+                    const key = `${p.server}:${p.port}:${p.secret}`.toLowerCase();
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+
+                // 簡單延遲判斷
+                allProxies.forEach(p => {
+                    const ms = parseInt(p.ping);
+                    if (!isNaN(ms) && ms > 450) p.status = 'slow';
+                });
+
+                updateTimeSpan.innerText = `同步時間: ${new Date().toLocaleTimeString()}`;
+                statsBar.classList.remove('hidden');
+                totalCount.textContent = allProxies.length;
+                sourceName.textContent = currentSource === 'all' ? '全部合併' : (UPSTREAMS[currentSource]?.name || currentSource);
+
+                renderList();
+            } catch (error) {
+                console.error(error);
+                showToast('獲取數據失敗，請檢查代理設定');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderList() {
+            const filtered = allProxies.filter(item => {
+                const q = searchQuery;
+                const matchesSearch = !q ||
+                    (item.location || '').toLowerCase().includes(q) ||
+                    (item.server || '').toLowerCase().includes(q) ||
+                    (item.domain || '').toLowerCase().includes(q) ||
+                    (item.source || '').toLowerCase().includes(q);
+
+                const matchesFilter = currentFilter === 'all' || item.status === currentFilter;
+                return matchesSearch && matchesFilter;
+            });
+
+            if (filtered.length === 0) {
+                proxyGrid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            proxyGrid.classList.remove('hidden');
+            proxyGrid.innerHTML = '';
+
+            const frag = document.createDocumentFragment();
+
+            filtered.forEach(proxy => {
+                const host = proxy.domain || proxy.server;
+                const deepLink = proxy.link || `tg://proxy?server=${encodeURIComponent(host)}&port=${proxy.port}&secret=${encodeURIComponent(proxy.secret)}`;
+
+                let statusBadge = `<span class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs px-2 py-0.5 rounded-md font-medium">在線</span>`;
+                if (proxy.status === 'slow') {
+                    statusBadge = `<span class="bg-amber-50 text-amber-600 border border-amber-200 text-xs px-2 py-0.5 rounded-md font-medium">高延遲</span>`;
+                } else if (proxy.status === 'offline') {
+                    statusBadge = `<span class="bg-rose-50 text-rose-600 border border-rose-200 text-xs px-2 py-0.5 rounded-md font-medium">離線</span>`;
+                }
+
+                const sourceColor = SOURCE_COLORS[proxy.source] || 'bg-slate-100 text-slate-600';
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-2xl p-5 border border-slate-100 shadow-xs proxy-card transition duration-200 flex flex-col justify-between';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="text-xl shrink-0">${escapeHtml(proxy.flag || '🌐')}</span>
+                                <h3 class="font-bold text-slate-800 text-md truncate" title="${escapeHtml(proxy.location)}">${escapeHtml(proxy.location)}</h3>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                ${statusBadge}
+                                <span class="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">${escapeHtml(proxy.ping || 'N/A')}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-1.5 text-xs font-mono text-slate-500 bg-slate-50 p-2.5 rounded-xl mb-4 border border-slate-100">
+                            <div class="flex justify-between gap-2">
+                                <span class="text-slate-400 shrink-0">服務器:</span>
+                                <span class="text-slate-700 truncate text-right" title="${escapeHtml(host)}">${escapeHtml(host)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">端　口:</span>
+                                <span class="text-slate-700">${escapeHtml(proxy.port)}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <span class="text-slate-400 shrink-0">密　鑰:</span>
+                                <span class="text-slate-700 truncate text-right" title="${escapeHtml(proxy.secret)}">${escapeHtml(proxy.secret)}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">來　源:</span>
+                                <span class="source-tag ${sourceColor}">${escapeHtml(proxy.source)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs">
+                        <a href="${escapeHtml(deepLink)}" class="bg-sky-500 hover:bg-sky-600 text-white font-medium py-2 rounded-lg text-center transition flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-bolt"></i> 連接
+                        </a>
+                        <button data-link="${escapeHtml(deepLink)}" class="copy-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg transition text-center cursor-pointer flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-copy"></i> 複製
+                        </button>
+                        <button data-link="${escapeHtml(deepLink)}" data-name="${escapeHtml(proxy.location)}" class="qr-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg transition text-center cursor-pointer flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-qrcode"></i> 二維碼
+                        </button>
+                    </div>
+                `;
+                frag.appendChild(card);
+            });
+
+            proxyGrid.appendChild(frag);
+
+            // 綁定事件
+            proxyGrid.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => copyToClipboard(btn.dataset.link));
+            });
+            proxyGrid.querySelectorAll('.qr-btn').forEach(btn => {
+                btn.addEventListener('click', () => showQRCode(btn.dataset.link, btn.dataset.name));
+            });
+        }
+
+        function showLoading(isLoading) {
+            if (isLoading) {
+                loadingState.classList.remove('hidden');
+                proxyGrid.classList.add('hidden');
+                emptyState.classList.add('hidden');
+                refreshBtn.disabled = true;
+                refreshBtn.classList.add('opacity-50');
+            } else {
+                loadingState.classList.add('hidden');
+                refreshBtn.disabled = false;
+                refreshBtn.classList.remove('opacity-50');
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('代理連結已複製');
+            }).catch(() => showToast('複製失敗'));
+        }
+
+        function showQRCode(link, name) {
+            qrcodeContainer.innerHTML = '';
+            document.getElementById('qrTitle').innerText = `${name} - 節點掃描`;
+            document.getElementById('qrLink').href = link;
+            new QRCode(qrcodeContainer, {
+                text: link,
+                width: 180,
+                height: 180,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            qrModal.classList.remove('hidden');
+        }
+
+        // 事件監聽
+        refreshBtn.addEventListener('click', fetchProxies);
+
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            renderList();
+        });
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                filterBtns.forEach(b => b.className = 'filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap');
+                e.target.className = 'filter-btn bg-sky-50 text-sky-600 px-4 py-1.5 rounded-lg text-sm font-medium border border-sky-100 cursor-pointer whitespace-nowrap';
+                currentFilter = e.target.getAttribute('data-filter');
+                renderList();
+            });
+        });
+
+        sourceBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                sourceBtns.forEach(b => b.className = 'source-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer');
+                e.target.className = 'source-btn bg-sky-50 text-sky-600 px-3 py-1.5 rounded-lg text-sm font-medium border border-sky-100 cursor-pointer';
+                currentSource = e.target.getAttribute('data-source');
+                fetchProxies();
+            });
+        });
+
+        document.getElementById('closeModal').addEventListener('click', () => qrModal.classList.add('hidden'));
+        qrModal.addEventListener('click', (e) => {
+            if (e.target === qrModal) qrModal.classList.add('hidden');
+        });
+
+        // 初始化
+        fetchProxies();
+
+        // 可選：自動每 3 分鐘刷新一次
+        // setInterval(fetchProxies, 180000);
+    </script>
+</body>
+</html>
