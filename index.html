@@ -46,7 +46,7 @@
                     <i class="fa-brands fa-telegram text-sky-500 text-4xl"></i>
                     MTProto Proxy Panel
                 </h1>
-                <p class="text-slate-500 mt-1">多上游源 · 自動去重 · 加強版代理</p>
+                <p class="text-slate-500 mt-1">多上游源 · 自動去重 · ≤300ms 篩選</p>
             </div>
             <div class="mt-4 md:mt-0 flex items-center gap-3">
                 <span id="updateTime" class="text-xs bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full font-mono">
@@ -81,6 +81,7 @@
             <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                 <button data-filter="all" class="filter-btn bg-sky-50 text-sky-600 px-4 py-1.5 rounded-lg text-sm font-medium border border-sky-100 cursor-pointer whitespace-nowrap">全部</button>
                 <button data-filter="online" class="filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap">在線</button>
+                <button data-filter="fast" class="filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap">≤300ms</button>
                 <button data-filter="slow" class="filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap">高延遲</button>
             </div>
         </div>
@@ -124,7 +125,7 @@
     <script>
         // ===================== 設定區 =====================
         // 把下面改成你自己的 Cloudflare Workers 網址（結尾要有 /）
-        const CORS_PROXY = 'https://cors.meekt.workers.dev/';
+        const CORS_PROXY = 'https://cors.556626.xyz/';
 
         // ==================================================
 
@@ -135,18 +136,22 @@
                 url: 'https://www.mtproto.shop/proxies.json',
                 parser: (data) => {
                     const list = Array.isArray(data) ? data : (data.proxies || []);
-                    return list.map(p => ({
-                        location: p.location || p.server || 'Unknown',
-                        flag: p.flag || '🌐',
-                        server: p.server || p.domain || '',
-                        domain: p.domain || '',
-                        port: p.port,
-                        secret: p.secret,
-                        ping: p.ping || (p.latency_ms ? p.latency_ms + 'ms' : 'N/A'),
-                        status: p.status || 'online',
-                        link: p.link || null,
-                        source: 'mtproto.shop'
-                    }));
+                    return list.map(p => {
+                        const country = extractCountry(p.location || p.server || '');
+                        return {
+                            location: p.location || p.server || 'Unknown',
+                            countryCode: country.code,
+                            flag: country.flag,
+                            server: p.server || p.domain || '',
+                            domain: p.domain || '',
+                            port: p.port,
+                            secret: p.secret,
+                            ping: p.ping || (p.latency_ms ? p.latency_ms + 'ms' : 'N/A'),
+                            status: p.status || 'online',
+                            link: p.link || null,
+                            source: 'mtproto.shop'
+                        };
+                    });
                 }
             },
             'dubblebyte': {
@@ -155,18 +160,22 @@
                 url: 'https://raw.githubusercontent.com/dubblebyte/free-mtproto-proxies/main/proxies.json',
                 parser: (data) => {
                     const list = Array.isArray(data) ? data : [];
-                    return list.map(p => ({
-                        location: p.server || 'Unknown',
-                        flag: '🌐',
-                        server: p.server,
-                        domain: '',
-                        port: p.port,
-                        secret: p.secret,
-                        ping: p.latency_ms != null ? p.latency_ms + 'ms' : 'N/A',
-                        status: 'online',
-                        link: p.link || null,
-                        source: 'dubblebyte'
-                    }));
+                    return list.map(p => {
+                        const country = extractCountry(p.server || '');
+                        return {
+                            location: p.server || 'Unknown',
+                            countryCode: country.code,
+                            flag: country.flag,
+                            server: p.server,
+                            domain: '',
+                            port: p.port,
+                            secret: p.secret,
+                            ping: p.latency_ms != null ? p.latency_ms + 'ms' : 'N/A',
+                            status: 'online',
+                            link: p.link || null,
+                            source: 'dubblebyte'
+                        };
+                    });
                 }
             },
             'tgmtproxy': {
@@ -175,18 +184,22 @@
                 url: 'https://tgmtproxy.github.io/mtproxy/proxies.json',
                 parser: (data) => {
                     const list = data.proxies || [];
-                    return list.map(p => ({
-                        location: p.server || 'Unknown',
-                        flag: p.ours ? '⭐' : '🌐',
-                        server: p.server,
-                        domain: '',
-                        port: p.port,
-                        secret: p.secret,
-                        ping: 'N/A',
-                        status: p.status === 'up' ? 'online' : 'offline',
-                        link: null,
-                        source: 'tgmtproxy'
-                    }));
+                    return list.map(p => {
+                        const country = extractCountry(p.server || '');
+                        return {
+                            location: p.server || 'Unknown',
+                            countryCode: country.code,
+                            flag: p.ours ? '⭐' : country.flag,
+                            server: p.server,
+                            domain: '',
+                            port: p.port,
+                            secret: p.secret,
+                            ping: 'N/A',
+                            status: p.status === 'up' ? 'online' : 'offline',
+                            link: null,
+                            source: 'tgmtproxy'
+                        };
+                    });
                 }
             },
             'shablin': {
@@ -195,18 +208,22 @@
                 url: 'https://raw.githubusercontent.com/shablin/mtproto-proxy/main/data/valid_proxy.json',
                 parser: (data) => {
                     const list = Array.isArray(data) ? data : [];
-                    return list.filter(p => p.alive !== false).map(p => ({
-                        location: p.host || p.server || 'Unknown',
-                        flag: '🌐',
-                        server: p.host || p.server,
-                        domain: '',
-                        port: p.port,
-                        secret: p.secret,
-                        ping: p.latency_ms != null ? Math.round(p.latency_ms) + 'ms' : 'N/A',
-                        status: 'online',
-                        link: p.url || null,
-                        source: 'shablin'
-                    }));
+                    return list.filter(p => p.alive !== false).map(p => {
+                        const country = extractCountry(p.host || p.server || '');
+                        return {
+                            location: p.host || p.server || 'Unknown',
+                            countryCode: country.code,
+                            flag: country.flag,
+                            server: p.host || p.server,
+                            domain: '',
+                            port: p.port,
+                            secret: p.secret,
+                            ping: p.latency_ms != null ? Math.round(p.latency_ms) + 'ms' : 'N/A',
+                            status: 'online',
+                            link: p.url || null,
+                            source: 'shablin'
+                        };
+                    });
                 }
             },
             'zakky8': {
@@ -215,23 +232,26 @@
                 url: 'https://zakky8.github.io/mtproto-proxy-pro/proxies.json',
                 parser: (data) => {
                     const list = data.proxies || [];
-                    return list.map(p => ({
-                        location: (p.country ? p.country + ' · ' : '') + (p.server || 'Unknown'),
-                        flag: p.country ? getFlag(p.country) : '🌐',
-                        server: p.server,
-                        domain: '',
-                        port: p.port,
-                        secret: p.secret,
-                        ping: p.latency_ms != null ? p.latency_ms + 'ms' : 'N/A',
-                        status: (p.status === 'reachable' || p.status === 'online') ? 'online' : (p.status || 'online'),
-                        link: p.link || null,
-                        source: 'zakky8'
-                    }));
+                    return list.map(p => {
+                        const code = (p.country || '').toUpperCase();
+                        return {
+                            location: (p.country ? p.country + ' · ' : '') + (p.server || 'Unknown'),
+                            countryCode: code,
+                            flag: code ? getFlag(code) : '🌐',
+                            server: p.server,
+                            domain: '',
+                            port: p.port,
+                            secret: p.secret,
+                            ping: p.latency_ms != null ? p.latency_ms + 'ms' : 'N/A',
+                            status: (p.status === 'reachable' || p.status === 'online') ? 'online' : (p.status || 'online'),
+                            link: p.link || null,
+                            source: 'zakky8'
+                        };
+                    });
                 }
             }
         };
 
-        // 來源顏色對應
         const SOURCE_COLORS = {
             'mtproto.shop': 'bg-blue-100 text-blue-700',
             'dubblebyte': 'bg-emerald-100 text-emerald-700',
@@ -240,10 +260,44 @@
             'zakky8': 'bg-rose-100 text-rose-700'
         };
 
+        // 簡易國家代碼提取（可後續擴充）
+        function extractCountry(text) {
+            const t = (text || '').toUpperCase();
+            const map = {
+                'USA': 'US', 'UNITED STATES': 'US', 'AMERICA': 'US',
+                'SINGAPORE': 'SG', 'SGP': 'SG',
+                'JAPAN': 'JP', 'TOKYO': 'JP',
+                'HONG KONG': 'HK', 'HK': 'HK',
+                'TAIWAN': 'TW', 'TPE': 'TW',
+                'KOREA': 'KR', 'SEOUL': 'KR',
+                'GERMANY': 'DE', 'FRANKFURT': 'DE',
+                'NETHERLANDS': 'NL', 'AMSTERDAM': 'NL',
+                'UK': 'GB', 'LONDON': 'GB', 'BRITAIN': 'GB',
+                'FRANCE': 'FR', 'PARIS': 'FR',
+                'CANADA': 'CA',
+                'AUSTRALIA': 'AU',
+                'RUSSIA': 'RU', 'MOSCOW': 'RU',
+                'CHINA': 'CN', 'BEIJING': 'CN', 'SHANGHAI': 'CN'
+            };
+            for (const [key, code] of Object.entries(map)) {
+                if (t.includes(key)) {
+                    return { code, flag: getFlag(code) };
+                }
+            }
+            // 嘗試直接匹配兩位國家碼
+            const m = t.match(/\b([A-Z]{2})\b/);
+            if (m) return { code: m[1], flag: getFlag(m[1]) };
+            return { code: '', flag: '🌐' };
+        }
+
         function getFlag(code) {
             if (!code || code.length !== 2) return '🌐';
             const offset = 127397;
-            return String.fromCodePoint(...[...code.toUpperCase()].map(c => c.charCodeAt(0) + offset));
+            try {
+                return String.fromCodePoint(...[...code.toUpperCase()].map(c => c.charCodeAt(0) + offset));
+            } catch {
+                return '🌐';
+            }
         }
 
         function escapeHtml(str) {
@@ -321,10 +375,13 @@
                     return true;
                 });
 
-                // 簡單延遲判斷
+                // 延遲狀態判斷
                 allProxies.forEach(p => {
                     const ms = parseInt(p.ping);
-                    if (!isNaN(ms) && ms > 450) p.status = 'slow';
+                    if (!isNaN(ms)) {
+                        if (ms > 450) p.status = 'slow';
+                        else if (ms <= 300) p.status = 'fast';
+                    }
                 });
 
                 updateTimeSpan.innerText = `同步時間: ${new Date().toLocaleTimeString()}`;
@@ -348,9 +405,21 @@
                     (item.location || '').toLowerCase().includes(q) ||
                     (item.server || '').toLowerCase().includes(q) ||
                     (item.domain || '').toLowerCase().includes(q) ||
-                    (item.source || '').toLowerCase().includes(q);
+                    (item.source || '').toLowerCase().includes(q) ||
+                    (item.countryCode || '').toLowerCase().includes(q);
 
-                const matchesFilter = currentFilter === 'all' || item.status === currentFilter;
+                let matchesFilter = true;
+                if (currentFilter === 'all') {
+                    matchesFilter = true;
+                } else if (currentFilter === 'fast') {
+                    const ms = parseInt(item.ping);
+                    matchesFilter = !isNaN(ms) && ms <= 300;
+                } else if (currentFilter === 'online') {
+                    matchesFilter = item.status === 'online' || item.status === 'fast';
+                } else {
+                    matchesFilter = item.status === currentFilter;
+                }
+
                 return matchesSearch && matchesFilter;
             });
 
@@ -370,11 +439,21 @@
                 const host = proxy.domain || proxy.server;
                 const deepLink = proxy.link || `tg://proxy?server=${encodeURIComponent(host)}&port=${proxy.port}&secret=${encodeURIComponent(proxy.secret)}`;
 
+                // 標題：國旗 + 國家縮寫
+                let displayTitle = '';
+                if (proxy.countryCode) {
+                    displayTitle = `${proxy.flag || '🌐'}${proxy.countryCode}`;
+                } else {
+                    displayTitle = `${proxy.flag || '🌐'}${proxy.location || proxy.server || 'Unknown'}`;
+                }
+
                 let statusBadge = `<span class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs px-2 py-0.5 rounded-md font-medium">在線</span>`;
                 if (proxy.status === 'slow') {
                     statusBadge = `<span class="bg-amber-50 text-amber-600 border border-amber-200 text-xs px-2 py-0.5 rounded-md font-medium">高延遲</span>`;
                 } else if (proxy.status === 'offline') {
                     statusBadge = `<span class="bg-rose-50 text-rose-600 border border-rose-200 text-xs px-2 py-0.5 rounded-md font-medium">離線</span>`;
+                } else if (proxy.status === 'fast') {
+                    statusBadge = `<span class="bg-sky-50 text-sky-600 border border-sky-200 text-xs px-2 py-0.5 rounded-md font-medium">≤300ms</span>`;
                 }
 
                 const sourceColor = SOURCE_COLORS[proxy.source] || 'bg-slate-100 text-slate-600';
@@ -385,8 +464,9 @@
                     <div>
                         <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center gap-2 min-w-0">
-                                <span class="text-xl shrink-0">${escapeHtml(proxy.flag || '🌐')}</span>
-                                <h3 class="font-bold text-slate-800 text-md truncate" title="${escapeHtml(proxy.location)}">${escapeHtml(proxy.location)}</h3>
+                                <h3 class="font-bold text-slate-800 text-lg truncate" title="${escapeHtml(proxy.location || proxy.server)}">
+                                    ${escapeHtml(displayTitle)}
+                                </h3>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 ${statusBadge}
@@ -421,7 +501,7 @@
                         <button data-link="${escapeHtml(deepLink)}" class="copy-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg transition text-center cursor-pointer flex items-center justify-center gap-1">
                             <i class="fa-solid fa-copy"></i> 複製
                         </button>
-                        <button data-link="${escapeHtml(deepLink)}" data-name="${escapeHtml(proxy.location)}" class="qr-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg transition text-center cursor-pointer flex items-center justify-center gap-1">
+                        <button data-link="${escapeHtml(deepLink)}" data-name="${escapeHtml(displayTitle)}" class="qr-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg transition text-center cursor-pointer flex items-center justify-center gap-1">
                             <i class="fa-solid fa-qrcode"></i> 二維碼
                         </button>
                     </div>
@@ -508,9 +588,6 @@
 
         // 初始化
         fetchProxies();
-
-        // 可選：自動每 3 分鐘刷新一次
-        // setInterval(fetchProxies, 180000);
     </script>
 </body>
 </html>
